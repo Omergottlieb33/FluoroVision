@@ -1,0 +1,6 @@
+train: \\Users\\97254\\Desktop\\Resources\\Technion\\exploratory_resaerach\\data\\dataset\\images\\train
+val: \\Users\\97254\\Desktop\\Resources\\Technion\\exploratory_resaerach\\data\\dataset\\images\\val
+names:
+  0: single
+  1: multiple
+path: ''
