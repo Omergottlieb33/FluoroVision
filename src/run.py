@@ -1,0 +1,1 @@
+#TODO: build run function that will run the entire pipeline: video -> tracking -> clustering -> visualization

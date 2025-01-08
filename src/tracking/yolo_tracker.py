@@ -40,6 +40,8 @@ def get_yolo_trakcing_results(weights_path, video_path ,results_path,save_video=
     # Load model
     model = YOLO(weights_path)
     # Track objects
+    #TODO: test Byte tracker
+    #TODO: check inputing pre conditions of movement of objects
     results = model.track(video_path, save=save_video)
     yolo_tracker_results_to_csv(results, results_path)
     return results
@@ -49,4 +51,3 @@ if __name__ == '__main__':
     video_path = r'C:\Users\97254\Desktop\Resources\Technion\exploratory_resaerach\data\dataset\val_video.mp4'
     results_path = r'C:\Users\97254\Desktop\Resources\Technion\exploratory_resaerach\runs\detect\track\results.csv'
     results = get_yolo_trakcing_results(weights_path, video_path,results_path, save_video=False)
-    
