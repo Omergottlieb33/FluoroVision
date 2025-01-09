@@ -6,12 +6,6 @@ The system is designed to process videos captured under fluorescence microscopy 
 
 [Bead Video](media/val_video.mp4)
 
-<video controls>
-  <source src="media/val_video.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
-
-
 
 ## Features
 * Bead detection and tracking
@@ -20,3 +14,30 @@ The system is designed to process videos captured under fluorescence microscopy 
 
 
 ## Getting Started
+### Prerequisites
+- Python 3.10
+### Creating a Virtual Environment
+1. Create a virtual environment using Python 3.10:
+    ```sh
+    python3.10 -m venv venv
+    ```
+
+2. Activate the virtual environment:
+    - On Windows:
+        ```sh
+        venv\Scripts\activate
+        ```
+    - On macOS and Linux:
+        ```sh
+        source venv/bin/activate
+        ```
+
+3. Install the required packages:
+    ```sh
+    pip install -r requirements.txt
+    ```
+
+### Usage
+To start the project, run:
+```sh
+npm start
