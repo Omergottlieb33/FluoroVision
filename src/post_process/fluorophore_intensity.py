@@ -60,7 +60,8 @@ def get_bead_fluoro_intensity(frame, box, num_peaks=3, min_distance=10, peak_rad
         return np.nan, np.nan
     xc, yc = get_bead_center(distinctive_peaks, x1, y1)
     factor = get_location_factor(xc, yc)
-    mask = get_peak_mask(bead, distinctive_peaks, peak_radius)
+    mask = get_peak_mask_circle(bead, distinctive_peaks, peak_radius)
+    #mask = get_peak_mask_rectangle(bead, distinctive_peaks, width=2, height=2)
     interpolated_image = horizontal_axis_interpolation(bead, mask)
     clustered_array, fluoro_intesity_sum1, closed_clusterd_array, fluoro_intesity_sum2 = kmean_cluster_2d_array(
         interpolated_image, n_clusters=2)
@@ -116,13 +117,22 @@ def get_bead_center(peaks, x1, y1):
     return xc, yc
 
 
-def get_peak_mask(image, peaks, peak_radius):
+def get_peak_mask_circle(image, peaks, peak_radius):
     mask = np.ones_like(image, dtype=bool)
     for peak in peaks:
         rr, cc = np.ogrid[:image.shape[0], :image.shape[1]]
         mask_area = (rr - peak[0])**2 + (cc - peak[1])**2 <= peak_radius**2
         mask[mask_area] = False
     return mask
+
+def get_peak_mask_rectangle(image, peaks, width, height):
+    mask = np.ones_like(image, dtype=bool)
+    for peak in peaks:
+        rr, cc = np.ogrid[:image.shape[0], :image.shape[1]]
+        mask_area = (np.abs(rr - peak[0]) <= height // 2) & (np.abs(cc - peak[1]) <= width // 2)
+        mask[mask_area] = False
+    return mask
+
 
 
 def horizontal_axis_interpolation(image, mask):
