@@ -41,3 +41,12 @@ The system is designed to process videos captured under fluorescence microscopy 
 To start the project, run:
 ```sh
 npm start
+```
+
+## Data
+[Train dataset](https://drive.google.com/drive/folders/1EbYC0uD1Zuh-mNz0Phaw0SeymWO1dKs1)
+[Raw recordings](https://drive.google.com/drive/folders/1aH_1KSsaEB0UJTocE-Hv0TGhra-8LCEW)
+
+## Weights
+[YOLO11n weights](https://drive.google.com/drive/folders/1h9R3E3AswZSy4LiWa9xO7c-hWqxPvmV3)
+

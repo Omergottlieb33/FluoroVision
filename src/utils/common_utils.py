@@ -1,3 +1,5 @@
+import re
+
 def xywh_to_x1y1x2y2(box, image_width, image_height):
     x_center, y_center, box_width, box_height = box
     abs_x_center = x_center * image_width
@@ -32,3 +34,11 @@ def get_location_factor(x,y):
     )
 
     return val
+
+def extract_frame_number(filename):
+    """Extract the frame number from a filename like 'frame_0013.png'."""
+    match = re.search(r'frame_(\d+)\.png', filename)
+    if match:
+        return int(match.group(1))
+    else:
+        raise ValueError(f"Filename {filename} does not match the expected pattern.")

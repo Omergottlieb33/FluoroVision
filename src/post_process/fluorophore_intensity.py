@@ -1,20 +1,15 @@
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.fft import fft, ifft
-from scipy.signal import find_peaks
 from sklearn.cluster import KMeans
-
-import scipy.ndimage as ndimage
 import scipy.ndimage.filters as filters
-from scipy.interpolate import griddata
 
-from utils.plot_utils import get_laser_intesity_facotr, draw_bbox_on_frame
+from config.const import BEAD_WIDTH_THRESHOLD, PEAK_INTENSITY_THRESHOLD, MIN_DISTANCE, NUM_PEAKS, PEAK_RADIUS
 from utils.common_utils import get_location_factor, xywh_to_x1y1x2y2
-from config.const import BEAD_WIDTH_THRESHOLD
+from utils.plot_utils import get_laser_intesity_facotr, draw_bbox_on_frame
 
 
-def get_2d_array_peaks(image, min_distance=10, num_peaks=3, peak_radius=2):
+def get_2d_array_peaks(image, min_distance=10, num_peaks=3):
     """Find the peaks in a 2D array and return the coordinates of the top num_peaks peaks."""
 
     neighborhood = filters.maximum_filter(image, size=min_distance)
@@ -38,7 +33,8 @@ def kmean_cluster_2d_array(array, n_clusters=2):
     def get_cluster_sum(centers, image, cluster):
         # sorted_indices = np.argsort(centers)[::-1]
         # highest_value_clusters = sorted_indices[:2]
-        return np.sum(image[np.isin(cluster, 1)])
+        label = np.argmax(centers)
+        return np.sum(image[np.isin(cluster, label)])
 
     flattened_array = array.flatten().reshape(-1, 1)
     kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(flattened_array)
@@ -54,28 +50,31 @@ def kmean_cluster_2d_array(array, n_clusters=2):
     return clustered_array, sum_values1, closed_image, sum_values2
 
 
-def get_bead_fluoro_intensity(frame, box, num_peaks=3, min_distance=10, peak_radius=3, plot=False):
+def get_bead_fluoro_intensity(frame, box, num_peaks=3, min_distance=10, peak_radius=3, peak_th=1500, save=False, save_path=None):
     x1, y1, x2, y2 = xywh_to_x1y1x2y2(box, frame.shape[1], frame.shape[0])
     if x2 - x1 < BEAD_WIDTH_THRESHOLD:
         return np.nan, np.nan
     bead = frame[y1:y2, x1:x2]
-    distinctive_peaks = get_2d_peaks(bead, min_distance, num_peaks)
+    distinctive_peaks = get_2d_peaks(bead, min_distance, num_peaks, peak_th)
+    if len(distinctive_peaks) < num_peaks:
+        return np.nan, np.nan
     xc, yc = get_bead_center(distinctive_peaks, x1, y1)
     factor = get_location_factor(xc, yc)
     mask = get_peak_mask(bead, distinctive_peaks, peak_radius)
     interpolated_image = horizontal_axis_interpolation(bead, mask)
     clustered_array, fluoro_intesity_sum1, closed_clusterd_array, fluoro_intesity_sum2 = kmean_cluster_2d_array(
         interpolated_image, n_clusters=2)
-    if plot:
+    if save:
         frame_with_bbox = draw_bbox_on_frame(frame, (x1, y1, x2, y2))
         intensity_map = get_laser_intesity_facotr()
         fig, ax = plt.subplots(4, 2, figsize=(12, 12))
         ax[0, 0].imshow(cv2.cvtColor(frame_with_bbox, cv2.COLOR_BGR2RGB))
         ax[0, 0].set_title('Frame with Bounding Box')
         ax[0, 0].axis('off')
-        #ax[2, 0].imshow(intensity_map, cmap='viridis')
+        # ax[2, 0].imshow(intensity_map, cmap='viridis')
         im10 = ax[1, 0].imshow(intensity_map, cmap='viridis')
-        ax[1, 0].plot(xc, yc,'r+', markersize=15, markeredgewidth=2, label=f'Bead Center')
+        ax[1, 0].plot(xc, yc, 'r+', markersize=15,
+                      markeredgewidth=2, label=f'Bead Center')
         ax[1, 0].set_title(f'Laser Intensity Factor Map')
         ax[1, 0].axis('off')
         fig.colorbar(im10, ax=ax[1, 0])
@@ -104,8 +103,10 @@ def get_bead_fluoro_intensity(frame, box, num_peaks=3, min_distance=10, peak_rad
             f'Clustered Array after morphological operator and fluorophore value is: {(fluoro_intesity_sum2/factor):.3f}')
         ax[3, 1].axis('off')
         plt.tight_layout()
-        plt.show()
-    return fluoro_intesity_sum1, fluoro_intesity_sum2
+        plt.savefig(save_path)
+        # plt.show()
+        plt.close()
+    return fluoro_intesity_sum1/factor, fluoro_intesity_sum2/factor
 
 
 def get_bead_center(peaks, x1, y1):
@@ -139,7 +140,7 @@ def horizontal_axis_interpolation(image, mask):
     return image_interpolated
 
 
-def get_2d_peaks(image, min_distance=10, num_peaks=3):
+def get_2d_peaks(image, min_distance=10, num_peaks=3, peak_th=1500):
     # Apply maximum filter
     neighborhood = filters.maximum_filter(image, size=min_distance)
     # Find local maxima
@@ -148,10 +149,13 @@ def get_2d_peaks(image, min_distance=10, num_peaks=3):
     peak_coords = np.argwhere(local_max)
     # Sort peaks by intensity
     peak_intensities = image[local_max]
-    sorted_indices = np.argsort(peak_intensities)[::-1]
-    sorted_peak_coords = peak_coords[sorted_indices]
-    # Select the top num_peaks peaks+
-    distinctive_peaks = sorted_peak_coords[:num_peaks]
-    # TODO: add a check for the number of peaks and values
-    # TODO: return the peak values sorted
-    return distinctive_peaks
+    valid_peaks = peak_intensities > peak_th
+    peak_coords = peak_coords[valid_peaks]
+    peak_intensities = peak_intensities[valid_peaks]
+
+    # sorted_indices = np.argsort(peak_intensities)[::-1]
+    # sorted_peak_coords = peak_coords[sorted_indices]
+    # # Select the top num_peaks peaks+
+    # distinctive_peaks = sorted_peak_coords[:num_peaks]
+
+    return peak_coords
