@@ -1,52 +1,17 @@
-import cv2
-import numpy as np
-import pandas as pd
+# Description: This script is used to track objects in a video using YOLO model.
 from ultralytics import YOLO
-
-
-def yolo_tracker_results_to_csv(results, csv_path):
-    data = {
-        'frame': [],
-        'class': [],
-        'conf': [],
-        'x_center': [],
-        'y_center': [],
-        'width': [],
-        'height': [],
-        'track_id': []
-    }
-    for i, result in enumerate(results):
-        frame = i + 1
-        if result.boxes is not None:
-            xywh_boxes = result.boxes.xywh.numpy()
-            cls = result.boxes.cls.numpy()
-            conf = result.boxes.conf.numpy()
-            id = result.boxes.id.numpy() if result.boxes.is_track else np.full(len(cls), None)
-
-            data['frame'].extend(np.full(len(cls), frame))
-            data['class'].extend(cls)
-            data['conf'].extend(conf)
-            data['x_center'].extend(xywh_boxes[:, 0])
-            data['y_center'].extend(xywh_boxes[:, 1])
-            data['width'].extend(xywh_boxes[:, 2])
-            data['height'].extend(xywh_boxes[:, 3])
-            data['track_id'].extend(id)
-
-    df = pd.DataFrame(data)
-    df.to_csv(csv_path, index=False)
+from src.utils.common_utils import yolo_results_to_dataframe
 
 
 def get_yolo_trakcing_results(weights,tracker, source, project,name, save_video=False):
     """Track objects in a video using YOLO model."""
     # Load model
     model = YOLO(weights)
-    # Track objects
-    # TODO: test Byte tracker
-    # TODO: check inputing pre conditions of movement of objects
     results = model.track(source=source, save=save_video, project=project, name=name, verbose=True, tracker=tracker)
     results_path = project + f'/{name}/results.csv'
-    yolo_tracker_results_to_csv(results, results_path)
-    return results
+    df = yolo_results_to_dataframe(results)
+    df.to_csv(results_path, index=False)
+    return df
 
 
 if __name__ == '__main__':
