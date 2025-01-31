@@ -50,7 +50,7 @@ def extract_frame_number(filename):
     else:
         raise ValueError(f"Filename {filename} does not match the expected pattern.")
 
-def yolo_results_to_dataframe(results):
+def yolo_results_to_dataframe(results, frame):
     data = {
         'frame': [],
         'class': [],
@@ -62,7 +62,6 @@ def yolo_results_to_dataframe(results):
         'track_id': []
     }
     for i, result in enumerate(results):
-        frame = i + 1
         if result.boxes is not None:
             xywh_boxes = result.boxes.xywh.numpy()
             cls = result.boxes.cls.numpy()

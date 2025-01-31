@@ -5,10 +5,10 @@ import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 import scipy.ndimage.filters as filters
 
-from config.const import BEAD_WIDTH_THRESHOLD, PEAK_INTENSITY_THRESHOLD, MIN_DISTANCE, NUM_PEAKS, PEAK_RADIUS
-from utils.common_utils import get_location_factor, xywh_to_x1y1x2y2
-from utils.plot_utils import get_laser_intesity_facotr, draw_bbox_on_frame
-from utils.math_utils import get_dice_score
+from src.config.const import BEAD_WIDTH_THRESHOLD, PEAK_INTENSITY_THRESHOLD, MIN_DISTANCE, NUM_PEAKS, PEAK_RADIUS, DISTANCE_FROM_EDGE
+from src.utils.common_utils import get_location_factor, xywh_to_x1y1x2y2, xcycwh_to_x1y1x2y2
+from src.utils.plot_utils import get_laser_intesity_facotr, draw_bbox_on_frame
+from src.utils.math_utils import get_dice_score
 
 
 class FluorophoreIntensityEstimator:
@@ -22,9 +22,10 @@ class FluorophoreIntensityEstimator:
         self.intensity_map = get_laser_intesity_facotr()
     
     def __call__(self, frame, box, debug=False, save_path=None):
-        x1, y1, x2, y2 = xywh_to_x1y1x2y2(box, frame.shape[1], frame.shape[0])
-        if x2 - x1 < self.bead_width_threshold:
-            return np.nan, np.nan, np.nan
+        xc, yc, w, h = box
+        x1, y1, x2, y2 = xcycwh_to_x1y1x2y2(xc, yc, w, h)
+        if (w < self.bead_width_threshold) or (x1 < DISTANCE_FROM_EDGE) or (x2 > frame.shape[1] - DISTANCE_FROM_EDGE):
+            return np.nan
         bead = frame[y1:y2, x1:x2]
         distinctive_peaks = self.get_2d_peaks(bead)
         if len(distinctive_peaks) < self.num_peaks or len(distinctive_peaks) > self.num_peaks + 1:
@@ -42,7 +43,7 @@ class FluorophoreIntensityEstimator:
             self.plot_steps(frame_with_bbox, bead, distinctive_peaks, interpolated_image, clustered_array, closed_clusterd_array,
                             optimal_mask, xc, yc, factor, fluoro_intesity_sum1, fluoro_intesity_sum2, optimal_rectangle_intensity, save_path)
 
-        return fluoro_intesity_sum1 / factor, fluoro_intesity_sum2 / factor, optimal_rectangle_intensity / factor
+        return optimal_rectangle_intensity / factor
 
     
     def get_2d_peaks(self, image):
@@ -120,6 +121,7 @@ class FluorophoreIntensityEstimator:
         left_edge = np.min(non_zero_indices)
         right_edge = np.max(non_zero_indices)
         dice_score = 0
+        optimal_mask = np.zeros(shape)
         for h in height:
             for i in range(shape[0]):
                 if i + h > shape[0]:

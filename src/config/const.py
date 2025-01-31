@@ -1,9 +1,11 @@
-# System constant values
-
+# Image constants
 IMAGE_SIZE = (300, 300)
-BEAD_WIDTH_THRESHOLD = 30
+TIF_MIN_VAL = -250
+TIF_MAX_VAL = 2700
 
 # Peak detection parameters
+BEAD_WIDTH_THRESHOLD = 30
+DISTANCE_FROM_EDGE = 3
 MIN_DISTANCE = 10
 NUM_PEAKS = 3
 PEAK_RADIUS = 4
