@@ -4,8 +4,10 @@ import json
 import codecs
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 from src.utils.common_utils import xcycwh_to_x1y1x2y2
+from src.config.const import BEAD_MAX_AGE, FRAME_DIFF_THRESHOLD
 
 class BoxTracker:
     def __init__(self, id, bbox, frame, pixel_height_threshold=2):
@@ -19,9 +21,17 @@ class BoxTracker:
     
     def update(self, bbox, frame):
         prev_bbox = self.boxes[-1]
+        # box infornt of the previous box
         if prev_bbox[0] > bbox[0]:
             return 0
+        # box is in the trajectory of the previous box
         if abs(prev_bbox[1] - bbox[1]) > self.pixel_height_threshold:
+            return 0
+        # box is in the tracking interval, ~8 frames
+        if frame - self.frames[-1] > FRAME_DIFF_THRESHOLD:
+            return 0
+        # bead age condition
+        if self.age > BEAD_MAX_AGE:
             return 0
         self.boxes.append(bbox)
         self.frames.append(frame)
@@ -41,7 +51,7 @@ class BeadHorizontalTracker:
     
     def track(self):
         id = 0
-        for i, (frame, group) in enumerate(self.df.groupby('frame')):
+        for i, (frame, group) in tqdm(enumerate(self.df.groupby('frame'))):
             if i == 0:
                 for _, row in group.iterrows():
                     tracker = BoxTracker(id, row[3:7].to_numpy(), frame)
@@ -72,7 +82,7 @@ class BeadHorizontalTracker:
         with open(output_file, 'w') as f:
             json.dump(results, f, indent=4) ### this saves the array in .json format
     
-    def print_results(self, video_path, output_dir):
+    def save_results_as_figures(self, video_path, output_dir):
         os.makedirs(output_dir, exist_ok=True)
         cap = cv2.VideoCapture(video_path)
         frame_idx = 1
@@ -80,15 +90,62 @@ class BeadHorizontalTracker:
             ret, frame = cap.read()
             if not ret:
                 break
-            for tracker in self.trackers:
-                if frame_idx in tracker.frames:
-                    idx = tracker.frames.index(frame_idx)
-                    bbox = tracker.boxes[idx]
-                    x1, y1, x2, y2 = xcycwh_to_x1y1x2y2(bbox[0], bbox[1], bbox[2], bbox[3])
-                    cv2.rectangle(frame, (x1, y1), (x2,y2), (0, 255, 0), 2)
-                    cv2.putText(frame, f"{tracker.id}", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-            cv2.imwrite(f"{output_dir}/frame_{frame_idx}.png", frame)
+            for i, (frame_id, group) in tqdm(enumerate(self.df.groupby('frame'))):
+                if frame_id == frame_idx:
+                    for _, row in group.iterrows():
+                        x1, y1, x2, y2 = xcycwh_to_x1y1x2y2(row[3], row[4], row[5], row[6])
+                        cv2.rectangle(frame, (x1, y1), (x2,y2), (0, 255, 0), 1)
+                        if row['track_id'] is not None:
+                            cv2.putText(frame, f"{int(row['track_id'])}", (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+                        else:
+                            cv2.putText(frame, ' ', (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+                        cv2.putText(frame, f"{row['fluoro_intensity']:.2f}", (x1+10, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+                    cv2.imwrite(f"{output_dir}/frame_{frame_idx}.png", frame)
             frame_idx += 1
         cap.release()
         cv2.destroyAllWindows()
-        
+
+    def save_results_as_video(self, video_path, output_video_path, fps=1):
+        cap = cv2.VideoCapture(video_path)
+        frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        video_writer = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
+
+        frame_idx = 1
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+            for i, (frame_id, group) in tqdm(enumerate(self.df.groupby('frame'))):
+                if frame_id == frame_idx:
+                    for _, row in group.iterrows():
+                        x1, y1, x2, y2 = xcycwh_to_x1y1x2y2(row[3], row[4], row[5], row[6])
+                        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 1)
+                        try:
+                            cv2.putText(frame, f"{int(row['track_id'])}", (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+                        except:
+                            cv2.putText(frame, ' ', (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+                        cv2.putText(frame, f"{row['fluoro_intensity']:.2f}", (x1, y1), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+            video_writer.write(frame)
+            frame_idx += 1
+
+        cap.release()
+        video_writer.release()
+        cv2.destroyAllWindows()
+
+    def assign_track_ids(self):
+        track_ids = []
+        for i, row in self.df.iterrows():
+            frame = row['frame']
+            bbox = row[3:7].to_numpy()
+            assigned_id = None
+            for tracker in self.trackers:
+                if frame in tracker.frames:
+                    idx = tracker.frames.index(frame)
+                    tracked_bbox = tracker.boxes[idx]
+                    if np.array_equal(bbox, tracked_bbox):
+                        assigned_id = tracker.id
+                        break
+            track_ids.append(assigned_id)
+        self.df['track_id'] = track_ids

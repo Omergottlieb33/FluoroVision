@@ -29,7 +29,7 @@ class FluorophoreIntensityEstimator:
         bead = frame[y1:y2, x1:x2]
         distinctive_peaks = self.get_2d_peaks(bead)
         if len(distinctive_peaks) < self.num_peaks or len(distinctive_peaks) > self.num_peaks + 1:
-            return np.nan, np.nan,  np.nan
+            return np.nan
         xc, yc = self.get_bead_center(distinctive_peaks, x1, y1)
         factor = get_location_factor(xc, yc)
         mask = self.get_peak_mask_circle(bead, distinctive_peaks)
