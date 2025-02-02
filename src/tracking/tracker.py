@@ -125,8 +125,11 @@ class BeadHorizontalTracker:
                         try:
                             cv2.putText(frame, f"{int(row['track_id'])}", (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
                         except:
-                            cv2.putText(frame, ' ', (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-                        cv2.putText(frame, f"{row['fluoro_intensity']:.2f}", (x1, y1), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+                            print('invalid track_id')
+                        try:
+                            cv2.putText(frame, f"{int(row['fluoro_intensity']/row['factor'])}", (x1, y1), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+                        except:
+                            print('Invalid fluoro_intensity')
             video_writer.write(frame)
             frame_idx += 1
 

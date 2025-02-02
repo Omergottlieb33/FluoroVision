@@ -94,13 +94,15 @@ class FluoroVision:
 
     def save_fluorophore_intesity_histogram(self):
         # detection histogram
-        fluoro_intensity = self.df['fluoro_intensity'].to_numpy()
+        self.df['refactored_fluoro_intensity'] = self.df['fluoro_intensity'] / \
+            self.df['factor']
+        fluoro_intensity = self.df['refactored_fluoro_intensity'].to_numpy()
         fluoro_intensity = fluoro_intensity.reshape(-1, 1)
         fluoro_intensity = fluoro_intensity[~np.isnan(fluoro_intensity)]
         save_histogram(fluoro_intensity, 25, 'Detection Fluorophore Intensity Histogram', 'Intensity',
                        'Frequency', os.path.join(self.output_dir, 'detection_fluorophore_intensity_histogram.png'))
         tracked_intensity = self.df.groupby(
-            'track_id')['fluoro_intensity'].mean()
+            'track_id')['refactored_fluoro_intensity'].mean()
         save_histogram(tracked_intensity, 25, 'Tracked Fluorophore Intensity Histogram', 'Intensity',
                        'Frequency', os.path.join(self.output_dir, 'tracked_fluorophore_intensity_histogram.png'))
 
@@ -110,9 +112,9 @@ class FluoroVision:
         intensity_tensor = np.zeros((IMAGE_SIZE[0], IMAGE_SIZE[1], z))
         for i, (name, group) in enumerate(self.df.groupby('track_id')):
             for j, row in group.iterrows():
-                if not np.isnan(row['fluoro_intensity']):
+                if not np.isnan(row['refactored_fluoro_intensity']):
                     intensity_tensor[int(row['y_center']), int(
-                        row['x_center']), i] = row['fluoro_intensity']
+                        row['x_center']), i] = row['refactored_fluoro_intensity']
         intensity_map = get_video_intensity_map(intensity_tensor)
         plt.imshow(intensity_map, cmap='hot')
         plt.colorbar()
