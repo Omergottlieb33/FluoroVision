@@ -43,7 +43,7 @@ class FluorophoreIntensityEstimator:
             self.plot_steps(frame_with_bbox, bead, distinctive_peaks, interpolated_image, clustered_array, closed_clusterd_array,
                             optimal_mask, xc, yc, factor, fluoro_intesity_sum1, fluoro_intesity_sum2, optimal_rectangle_intensity, save_path)
 
-        return optimal_rectangle_intensity / factor
+        return optimal_rectangle_intensity, factor
 
     
     def get_2d_peaks(self, image):
