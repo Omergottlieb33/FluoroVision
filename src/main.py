@@ -8,20 +8,21 @@ from ultralytics import YOLO
 from tifffile import TiffFile
 import matplotlib.pyplot as plt
 
-from src.config.const import TIF_MAX_VAL, TIF_MIN_VAL, IMAGE_SIZE
+from src.config.const import TIF_MAX_VAL, TIF_MIN_VAL, IMAGE_SIZE, SAVE_VIDEO, SAVE_HISOGRAM, SAVE_INTENSITY_MAP
 
 from src.utils.plot_utils import save_histogram
 from src.utils.math_utils import get_video_intensity_map
-from src.utils.common_utils import yolo_results_to_dataframe
+from src.utils.common_utils import yolo_results_to_dataframe, init_debug_logger
 
 from src.tracking.tracker import BeadHorizontalTracker
 from src.post_process.fluorophore_intensity import FluorophoreIntensityEstimator
 
 
 class FluoroVision:
-    def __init__(self, tif_path, weights, tif_min_val=TIF_MIN_VAL, tif_max_val=TIF_MAX_VAL):
+    def __init__(self, tif_path, weights, laser_map_path, tif_min_val=TIF_MIN_VAL, tif_max_val=TIF_MAX_VAL):
         self.tif_path = tif_path
         self.weights = weights
+        self.laser_map_path = laser_map_path
         self.output_dir = os.path.join(
             os.path.dirname(self.tif_path), 'results')
         os.makedirs(self.output_dir, exist_ok=True)
@@ -31,8 +32,10 @@ class FluoroVision:
 
     def init(self):
         self.detection_model = YOLO(self.weights)
-        self.estimator = FluorophoreIntensityEstimator()
+        self.estimator = FluorophoreIntensityEstimator(map_path=self.laser_map_path)
         self.video_path = os.path.join(self.output_dir, 'output_video.mp4')
+        self.logger = init_debug_logger('debug', os.path.join(
+            self.output_dir, 'debug.log'))
         self.save_tif_as_mp4(self.video_path)
 
     def estimate(self):
@@ -54,7 +57,7 @@ class FluoroVision:
                 tif_frame = page.asarray()
                 fluoro_intesity_list, factor_list = [], []
                 for j, box in enumerate(box_list):
-                    fluoro_intesity, factor = self.estimator(
+                    fluoro_intesity, factor = self.estimator(i,
                         tif_frame, box, False, None)
                     fluoro_intesity_list.append(fluoro_intesity)
                     factor_list.append(factor)
@@ -71,10 +74,13 @@ class FluoroVision:
     def save_results(self):
         self.df.to_csv(os.path.join(self.output_dir,
                        'tracked_results.csv'), index=False)
-        result_video_path = os.path.join(self.output_dir, 'tracked_video.mp4')
-        self.tracker.save_results_as_video(self.video_path, result_video_path)
-        self.save_fluorophore_intesity_histogram()
-        self.save_bead_intensity_map()
+        if SAVE_VIDEO:
+            result_video_path = os.path.join(self.output_dir, 'tracked_video.mp4')
+            self.tracker.save_results_as_video(self.video_path, result_video_path)
+        if SAVE_HISOGRAM:
+            self.save_fluorophore_intesity_histogram()
+        if SAVE_INTENSITY_MAP:
+            self.save_bead_intensity_map()
         print('Results saved to:', self.output_dir)
 
     def save_tif_as_mp4(self, output_video_path, fps=10):
@@ -125,8 +131,9 @@ class FluoroVision:
 
 
 if __name__ == '__main__':
-    tiff_path = r'C:\Users\97254\Desktop\Resources\Technion\exploratory_resaerach\fluorovision\data\AB3C\AB3C.tif'
+    tiff_path = r'c:\Users\97254\Desktop\Resources\Technion\exploratory_resaerach\fluorovision\data\A1\2025_02_05_A1.tif'
     weights_path = r'C:\Users\97254\Desktop\git\FluoroVision\src\weights\yolo11n_bead_det_best_301224.pt'
-    fve = FluoroVision(tiff_path, weights_path)
+    laser_map_path = r'c:\Users\97254\Desktop\Resources\Technion\exploratory_resaerach\fluorovision\data\mapV2.mat'
+    fve = FluoroVision(tiff_path, weights_path, laser_map_path)
     fve.estimate()
     fve.save_results()

@@ -2,36 +2,45 @@ import os
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.io import loadmat
 from sklearn.cluster import KMeans
 import scipy.ndimage.filters as filters
 
 from src.config.const import BEAD_WIDTH_THRESHOLD, PEAK_INTENSITY_THRESHOLD, MIN_DISTANCE, NUM_PEAKS, PEAK_RADIUS, DISTANCE_FROM_EDGE
-from src.utils.common_utils import get_location_factor, xywh_to_x1y1x2y2, xcycwh_to_x1y1x2y2
-from src.utils.plot_utils import get_laser_intesity_facotr, draw_bbox_on_frame
+from src.utils.common_utils import xcycwh_to_x1y1x2y2
+from src.utils.plot_utils import draw_bbox_on_frame
 from src.utils.math_utils import get_dice_score
 
+import logging
+
+logger  = logging.getLogger('debug')
 
 class FluorophoreIntensityEstimator:
-    def __init__(self, bead_width_threshold=BEAD_WIDTH_THRESHOLD, peak_intensity_threshold=PEAK_INTENSITY_THRESHOLD,
+    def __init__(self, map_path, bead_width_threshold=BEAD_WIDTH_THRESHOLD, peak_intensity_threshold=PEAK_INTENSITY_THRESHOLD,
                  min_distance=MIN_DISTANCE, num_peaks=NUM_PEAKS, peak_radius=PEAK_RADIUS):
+        self.map = loadmat(map_path)['map']
         self.bead_width_threshold = bead_width_threshold
         self.peak_intensity_threshold = peak_intensity_threshold
         self.min_distance = min_distance
         self.num_peaks = num_peaks
         self.peak_radius = peak_radius
-        self.intensity_map = get_laser_intesity_facotr()
     
-    def __call__(self, frame, box, debug=False, save_path=None):
+    def __call__(self, frame_id, frame, box, debug=False, save_path=None):
         xc, yc, w, h = box
         x1, y1, x2, y2 = xcycwh_to_x1y1x2y2(xc, yc, w, h)
         if (w < self.bead_width_threshold) or (x1 < DISTANCE_FROM_EDGE) or (x2 > frame.shape[1] - DISTANCE_FROM_EDGE):
             return np.nan, np.nan
         bead = frame[y1:y2, x1:x2]
         distinctive_peaks = self.get_2d_peaks(bead)
-        if len(distinctive_peaks) < self.num_peaks or len(distinctive_peaks) > self.num_peaks + 1:
+        # 2 peaks condition
+        if len(distinctive_peaks) < self.num_peaks:
+            logger.debug(f'{box} in frame {frame_id} has {len(distinctive_peaks)} peaks')
             return np.nan, np.nan
+        # more than 4 peaks condition
+        if len(distinctive_peaks) > 4:
+            print('')
         xc, yc = self.get_bead_center(distinctive_peaks, x1, y1)
-        factor = get_location_factor(xc, yc)
+        factor = self.map[xc, yc]
         mask = self.get_peak_mask_circle(bead, distinctive_peaks)
         interpolated_image = self.horizontal_axis_interpolation(bead, mask)
         clustered_array, fluoro_intesity_sum1, closed_clusterd_array, fluoro_intesity_sum2 = self.kmean_cluster_2d_array(
@@ -142,12 +151,6 @@ class FluorophoreIntensityEstimator:
         ax[0, 0].imshow(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
         ax[0, 0].set_title('Frame with Bounding Box')
         ax[0, 0].axis('off')
-        im10 = ax[1, 0].imshow(self.intensity_map, cmap='viridis')
-        ax[1, 0].plot(xc, yc, 'r+', markersize=15,
-                      markeredgewidth=2, label=f'Bead Center')
-        ax[1, 0].set_title(f'Laser Intensity Factor Map')
-        ax[1, 0].axis('off')
-        fig.colorbar(im10, ax=ax[1, 0])
 
         ax[2, 0].axis('off')
         ax[3, 0].axis('off')
