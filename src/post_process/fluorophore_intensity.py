@@ -1,12 +1,12 @@
 import os
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy.io import loadmat
+import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 import scipy.ndimage.filters as filters
 
-from src.config.const import BEAD_WIDTH_THRESHOLD, PEAK_INTENSITY_THRESHOLD, MIN_DISTANCE, NUM_PEAKS, PEAK_RADIUS, DISTANCE_FROM_EDGE
+from src.config.const import BEAD_WIDTH_THRESHOLD, PEAK_INTENSITY_THRESHOLD, FILTER_SIZE, NUM_PEAKS, PEAK_RADIUS, DISTANCE_FROM_EDGE
 from src.utils.common_utils import xcycwh_to_x1y1x2y2
 from src.utils.plot_utils import draw_bbox_on_frame
 from src.utils.math_utils import get_dice_score
@@ -17,11 +17,11 @@ logger  = logging.getLogger('debug')
 
 class FluorophoreIntensityEstimator:
     def __init__(self, map_path, bead_width_threshold=BEAD_WIDTH_THRESHOLD, peak_intensity_threshold=PEAK_INTENSITY_THRESHOLD,
-                 min_distance=MIN_DISTANCE, num_peaks=NUM_PEAKS, peak_radius=PEAK_RADIUS):
+                 filter_size=FILTER_SIZE, num_peaks=NUM_PEAKS, peak_radius=PEAK_RADIUS):
         self.map = loadmat(map_path)['map']
         self.bead_width_threshold = bead_width_threshold
         self.peak_intensity_threshold = peak_intensity_threshold
-        self.min_distance = min_distance
+        self.filter_size = filter_size
         self.num_peaks = num_peaks
         self.peak_radius = peak_radius
     
@@ -32,13 +32,14 @@ class FluorophoreIntensityEstimator:
             return np.nan, np.nan
         bead = frame[y1:y2, x1:x2]
         distinctive_peaks = self.get_2d_peaks(bead)
-        # 2 peaks condition
+        # peak condition 1
         if len(distinctive_peaks) < self.num_peaks:
             logger.debug(f'{box} in frame {frame_id} has {len(distinctive_peaks)} peaks')
             return np.nan, np.nan
-        # more than 4 peaks condition
-        if len(distinctive_peaks) > 4:
-            print('')
+        # peak condition 2
+        if self.num_peaks < len(distinctive_peaks):
+            logger.debug(f'{box} in frame {frame_id} has more than {self.num_peaks} peaks')
+            #TODO: handle this case: idea 1  - use first derivative, idea 2 - use median thresholding, idea 3 - peaks on same level
         xc, yc = self.get_bead_center(distinctive_peaks, x1, y1)
         factor = self.map[xc, yc]
         mask = self.get_peak_mask_circle(bead, distinctive_peaks)
@@ -57,7 +58,7 @@ class FluorophoreIntensityEstimator:
     
     def get_2d_peaks(self, image):
         # Apply maximum filter
-        neighborhood = filters.maximum_filter(image, size=self.min_distance)
+        neighborhood = filters.maximum_filter(image, size=self.filter_size)
         # Find local maxima
         local_max = (image == neighborhood)
         # Get the coordinates of the peaks

@@ -2,6 +2,9 @@ import argparse
 from ultralytics import YOLO
 
 def train_yolo(data_path, weights_path, img_size=640,  epochs=100, batch_size=16, device='cuda', project='beads/train', name='exp'):
+    #TODO: add double bead class
+    #TODO: add manual annotation script
+    #TODO: add data augmentation
     """Train YOLO model."""
     # Load model
     model = YOLO(weights_path)

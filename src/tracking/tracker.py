@@ -50,6 +50,7 @@ class BeadHorizontalTracker:
         self.trackers = []
     
     def track(self):
+        #TODO: refactor to run faster
         id = 0
         for i, (frame, group) in tqdm(enumerate(self.df.groupby('frame'))):
             if i == 0:

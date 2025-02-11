@@ -25,17 +25,20 @@ class FluoroVision:
         self.laser_map_path = laser_map_path
         self.output_dir = os.path.join(
             os.path.dirname(self.tif_path), 'results')
+        self.debug_dir = os.path.join(self.output_dir, 'debug')
         os.makedirs(self.output_dir, exist_ok=True)
         self.tif_min_val = tif_min_val
         self.tif_max_val = tif_max_val
         self.init()
 
     def init(self):
+        os.makedirs(self.output_dir, exist_ok=True)
+        os.makedirs(self.debug_dir, exist_ok=True)
+        self.logger = init_debug_logger('debug', os.path.join(
+            self.output_dir, 'debug.log'))
         self.detection_model = YOLO(self.weights)
         self.estimator = FluorophoreIntensityEstimator(map_path=self.laser_map_path)
         self.video_path = os.path.join(self.output_dir, 'output_video.mp4')
-        self.logger = init_debug_logger('debug', os.path.join(
-            self.output_dir, 'debug.log'))
         self.save_tif_as_mp4(self.video_path)
 
     def estimate(self):
@@ -57,8 +60,9 @@ class FluoroVision:
                 tif_frame = page.asarray()
                 fluoro_intesity_list, factor_list = [], []
                 for j, box in enumerate(box_list):
+                    save_path = os.path.join(self.debug_dir, f'frame_{i}_box_{j}.png')
                     fluoro_intesity, factor = self.estimator(i,
-                        tif_frame, box, False, None)
+                        tif_frame, box, False, save_path=save_path)
                     fluoro_intesity_list.append(fluoro_intesity)
                     factor_list.append(factor)
                 frame_df['fluoro_intensity'] = fluoro_intesity_list
@@ -105,11 +109,11 @@ class FluoroVision:
         fluoro_intensity = self.df['refactored_fluoro_intensity'].to_numpy()
         fluoro_intensity = fluoro_intensity.reshape(-1, 1)
         fluoro_intensity = fluoro_intensity[~np.isnan(fluoro_intensity)]
-        save_histogram(fluoro_intensity, 25, 'Detection Fluorophore Intensity Histogram', 'Intensity',
+        save_histogram(fluoro_intensity, 100, 'Detection Fluorophore Intensity Histogram', 'Intensity',
                        'Frequency', os.path.join(self.output_dir, 'detection_fluorophore_intensity_histogram.png'))
         tracked_intensity = self.df.groupby(
             'track_id')['refactored_fluoro_intensity'].mean()
-        save_histogram(tracked_intensity, 25, 'Tracked Fluorophore Intensity Histogram', 'Intensity',
+        save_histogram(tracked_intensity, 100, 'Tracked Fluorophore Intensity Histogram', 'Intensity',
                        'Frequency', os.path.join(self.output_dir, 'tracked_fluorophore_intensity_histogram.png'))
 
     def save_bead_intensity_map(self):
@@ -131,7 +135,7 @@ class FluoroVision:
 
 
 if __name__ == '__main__':
-    tiff_path = r'c:\Users\97254\Desktop\Resources\Technion\exploratory_resaerach\fluorovision\data\A1\2025_02_05_A1.tif'
+    tiff_path = r'c:\Users\97254\Desktop\Resources\Technion\exploratory_resaerach\fluorovision\data\AB3C\AB3C.tif'
     weights_path = r'C:\Users\97254\Desktop\git\FluoroVision\src\weights\yolo11n_bead_det_best_301224.pt'
     laser_map_path = r'c:\Users\97254\Desktop\Resources\Technion\exploratory_resaerach\fluorovision\data\mapV2.mat'
     fve = FluoroVision(tiff_path, weights_path, laser_map_path)
