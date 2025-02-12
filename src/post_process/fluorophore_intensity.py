@@ -5,6 +5,7 @@ from scipy.io import loadmat
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 import scipy.ndimage.filters as filters
+from scipy.interpolate import interp1d
 
 from src.config.const import BEAD_WIDTH_THRESHOLD, PEAK_INTENSITY_THRESHOLD, FILTER_SIZE, NUM_PEAKS, PEAK_RADIUS, DISTANCE_FROM_EDGE
 from src.utils.common_utils import xcycwh_to_x1y1x2y2
@@ -13,7 +14,8 @@ from src.utils.math_utils import get_dice_score
 
 import logging
 
-logger  = logging.getLogger('debug')
+logger = logging.getLogger('debug')
+
 
 class FluorophoreIntensityEstimator:
     def __init__(self, map_path, bead_width_threshold=BEAD_WIDTH_THRESHOLD, peak_intensity_threshold=PEAK_INTENSITY_THRESHOLD,
@@ -24,7 +26,7 @@ class FluorophoreIntensityEstimator:
         self.filter_size = filter_size
         self.num_peaks = num_peaks
         self.peak_radius = peak_radius
-    
+
     def __call__(self, frame_id, frame, box, debug=False, save_path=None):
         xc, yc, w, h = box
         x1, y1, x2, y2 = xcycwh_to_x1y1x2y2(xc, yc, w, h)
@@ -33,15 +35,18 @@ class FluorophoreIntensityEstimator:
         bead = frame[y1:y2, x1:x2]
         distinctive_peaks = self.get_2d_peaks(bead)
         # peak condition 1
-        if len(distinctive_peaks) < self.num_peaks:
-            logger.debug(f'{box} in frame {frame_id} has {len(distinctive_peaks)} peaks')
+        if len(distinctive_peaks) < self.num_peaks | len(distinctive_peaks) > self.num_peaks+2:
+            logger.debug(
+                f'{box} in frame {frame_id} has {len(distinctive_peaks)} peaks')
             return np.nan, np.nan
         # peak condition 2
+        # TODO: handle false peak detection
         if self.num_peaks < len(distinctive_peaks):
-            logger.debug(f'{box} in frame {frame_id} has more than {self.num_peaks} peaks')
-            #TODO: handle this case: idea 1  - use first derivative, idea 2 - use median thresholding, idea 3 - peaks on same level
-        xc, yc = self.get_bead_center(distinctive_peaks, x1, y1)
-        factor = self.map[xc, yc]
+            logger.debug(
+                f'{box} in frame {frame_id} has more than {self.num_peaks} peaks')
+            # TODO: handle this case: idea 1  - use first derivative, idea 2 - use median thresholding, idea 3 - peaks on same level
+        # xc, yc = self.get_bead_center(distinctive_peaks, x1, y1)
+        factor = self.map[int(xc), int(yc)]
         mask = self.get_peak_mask_circle(bead, distinctive_peaks)
         interpolated_image = self.horizontal_axis_interpolation(bead, mask)
         clustered_array, fluoro_intesity_sum1, closed_clusterd_array, fluoro_intesity_sum2 = self.kmean_cluster_2d_array(
@@ -55,7 +60,6 @@ class FluorophoreIntensityEstimator:
 
         return optimal_rectangle_intensity, factor
 
-    
     def get_2d_peaks(self, image):
         # Apply maximum filter
         neighborhood = filters.maximum_filter(image, size=self.filter_size)
@@ -69,15 +73,14 @@ class FluorophoreIntensityEstimator:
         peak_coords = peak_coords[valid_peaks]
         peak_intensities = peak_intensities[valid_peaks]
         return peak_coords
-    
+
     @staticmethod
     def get_bead_center(peaks, x1, y1):
         sorted_indices = np.argsort(peaks[:, 1])
         sorted_array = peaks[sorted_indices]
         xc, yc = int(x1 + sorted_array[1][1]), int(y1 + sorted_array[1][0])
         return xc, yc
-    
-    
+
     def get_peak_mask_circle(self, image, peaks):
         mask = np.ones_like(image, dtype=bool)
         for peak in peaks:
@@ -86,7 +89,7 @@ class FluorophoreIntensityEstimator:
                 (cc - peak[1]) ** 2 <= self.peak_radius ** 2
             mask[mask_area] = False
         return mask
-    
+
     @staticmethod
     def horizontal_axis_interpolation(image, mask):
         x = np.arange(image.shape[1])
@@ -100,6 +103,17 @@ class FluorophoreIntensityEstimator:
             else:
                 image_interpolated[i, :] = image[i, :]
         return image_interpolated
+
+    @staticmethod
+    def horizontal_axis_median_fill(image, mask):
+        filled_image = image.copy()
+        for i in range(filled_image.shape[0]):
+            row = filled_image[i, :]
+            row_mask = mask[i, :]
+            valid_values = row[row_mask]
+            median_val = np.median(valid_values)
+            row[~row_mask] = median_val
+        return filled_image
 
     @staticmethod
     def kmean_cluster_2d_array(array):
@@ -123,7 +137,7 @@ class FluorophoreIntensityEstimator:
             clustered_array, cv2.MORPH_CLOSE, kernel)
         sum_values2 = get_cluster_sum(cluster_centers, array, closed_image)
         return clustered_array, sum_values1, closed_image, sum_values2
-    
+
     @staticmethod
     def get_optimal_rectangle(cluster, height=[2, 3]):
         shape = cluster.shape
@@ -144,42 +158,3 @@ class FluorophoreIntensityEstimator:
                     dice_score = dice_score_i
                     optimal_mask = mask
         return optimal_mask
-
-   
-
-    def plot_steps(self, frame, bead, peaks, interpolated_image, clustered_array, closed_clusterd_array, optimal_mask, xc, yc, factor, fluoro_intesity_sum1, fluoro_intesity_sum2, optimal_rectangle_intensity, save_path):
-        fig, ax = plt.subplots(5, 2, figsize=(12, 12))
-        ax[0, 0].imshow(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-        ax[0, 0].set_title('Frame with Bounding Box')
-        ax[0, 0].axis('off')
-
-        ax[2, 0].axis('off')
-        ax[3, 0].axis('off')
-        ax[0, 1].imshow(bead, cmap='gray')
-        ax[0, 1].set_title('Original Image with Detected Peaks')
-        ax[0, 1].axis('off')
-        for peak in peaks:
-            ax[0, 1].plot(peak[1], peak[0], 'r+',
-                          markersize=15, markeredgewidth=2)
-
-        ax[1, 1].imshow(interpolated_image, cmap='gray')
-        ax[1, 1].set_title('Image with removed peaks and interpolated')
-        ax[1, 1].axis('off')
-        for peak in peaks:
-            ax[1, 1].plot(peak[1], peak[0], 'r+',
-                          markersize=15, markeredgewidth=2)
-        ax[2, 1].imshow(clustered_array, cmap='viridis')
-        ax[2, 1].set_title(
-            f'Clustered Array and fluorophore value is: {(fluoro_intesity_sum1 / factor):.3f}')
-        ax[3, 1].imshow(closed_clusterd_array, cmap='viridis')
-        ax[3, 1].set_title(
-            f'Clustered Array after morphological operator and fluorophore value is: {(fluoro_intesity_sum2 / factor):.3f}')
-        ax[3, 1].axis('off')
-        ax[4, 1].imshow(optimal_mask, cmap='viridis')
-        ax[4, 1].set_title(
-            f'Rectangle on the Image and its fluorophore value: {(optimal_rectangle_intensity / factor):.3f}')
-        ax[4, 1].axis('off')
-        ax[4, 0].axis('off')
-        plt.tight_layout()
-        plt.savefig(save_path)
-        plt.close()    
