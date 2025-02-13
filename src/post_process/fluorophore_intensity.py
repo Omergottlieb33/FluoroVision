@@ -47,7 +47,7 @@ class FluorophoreIntensityEstimator:
             # TODO: handle this case: idea 1  - use first derivative, idea 2 - use median thresholding, idea 3 - peaks on same level
         # xc, yc = self.get_bead_center(distinctive_peaks, x1, y1)
         factor = self.map[int(xc), int(yc)]
-        mask = self.get_peak_mask_circle(bead, distinctive_peaks)
+        mask = self.get_peak_mask_rectangle(bead, distinctive_peaks)
         interpolated_image = self.horizontal_axis_interpolation(bead, mask)
         clustered_array, fluoro_intesity_sum1, closed_clusterd_array, fluoro_intesity_sum2 = self.kmean_cluster_2d_array(
             interpolated_image)
@@ -88,6 +88,21 @@ class FluorophoreIntensityEstimator:
             mask_area = (rr - peak[0]) ** 2 + \
                 (cc - peak[1]) ** 2 <= self.peak_radius ** 2
             mask[mask_area] = False
+        return mask
+
+    def get_peak_mask_rectangle(self, image, peaks):
+        mask = np.ones_like(image, dtype=bool)
+        for peak in peaks:
+            # Peak coordinates
+            pr, pc = peak
+            # Calculate the rectangle boundaries
+            top = max(0, pr - self.peak_radius)
+            bottom = min(image.shape[0], pr + self.peak_radius + 1)
+            left = max(0, pc - self.peak_radius)
+            right = min(image.shape[1], pc + self.peak_radius + 1)
+            # Mask (set to False) the rectangular region
+            mask[top:bottom, left:right] = False
+
         return mask
 
     @staticmethod
