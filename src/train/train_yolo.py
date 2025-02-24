@@ -1,21 +1,22 @@
 import argparse
 from ultralytics import YOLO
 
-def train_yolo(data_path, weights_path, img_size=640,  epochs=100, batch_size=16, device='cuda', project='beads/train', name='exp'):
+
+def train_yolo(data_path, weights_path, cfg_path, img_size=640,  epochs=100, batch_size=16, device='cuda', project='beads/train', name='exp'):
     #TODO: add double bead class
     #TODO: add manual annotation script
-    #TODO: add data augmentation
     """Train YOLO model."""
     # Load model
     model = YOLO(weights_path)
     # Train model
-    train_results = model.train(data=data_path, epochs=epochs, batch=batch_size, imgsz=img_size, device=device, project=project, name=name)
+    train_results = model.train(data=data_path, cfg=cfg_path,epochs=epochs, batch=batch_size, imgsz=img_size, device=device, project=project, name=name)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train YOLO model')
     parser.add_argument('--data_path', type=str, required=True, help='Path to the data configuration file')
     parser.add_argument('--weights_path', type=str, required=True, help='Path to the pre-trained weights file')
+    parser.add_argument('--cfg_path', type=str, help='path to costum cfg file')
     parser.add_argument('--img_size', type=int, default=640, help='Image size for training')
     parser.add_argument('--epochs', type=int, default=100, help='Number of epochs for training')
     parser.add_argument('--batch_size', type=int, default=16, help='Batch size for training')
@@ -28,6 +29,7 @@ if __name__ == '__main__':
     train_yolo(
         data_path=args.data_path,
         weights_path=args.weights_path,
+        cfg_path=args.cfg_path,
         img_size=args.img_size,
         epochs=args.epochs,
         batch_size=args.batch_size,

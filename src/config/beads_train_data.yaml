@@ -1,20 +1,6 @@
-train: \\Users\\97254\\Desktop\\Resources\\Technion\\exploratory_resaerach\\data\\dataset\\images\\train
-val: \\Users\\97254\\Desktop\\Resources\\Technion\\exploratory_resaerach\\data\\dataset\\images\\val
+train: \\Users\\97254\\Desktop\\Resources\\Technion\\exploratory_resaerach\\fluorovision\\data\\dataset\\images\\train
+val: \\Users\\97254\\Desktop\\Resources\\Technion\\exploratory_resaerach\\fluorovision\\data\\dataset\\images\\val
 names:
   0: single
-  1: multiple
+  1: double
 path: ''
-
-# augmentation 
-# Brightness & Contrast (HSV, CLAHE) → Handles variations in fluorescence intensity
-# Mixup & Mosaic → Enhances dataset diversity and robustness
-# Motion Blur → Helps YOLO generalize for high-speed bead movement.
-
-hsv_h: 0.015  
-hsv_s: 0.7   
-hsv_v: 0.4    
-fliplr: 0.5
-mosaic: 1.0
-mixup: 0.2
-motion_blur: 0.5
-clahe: 1.0
